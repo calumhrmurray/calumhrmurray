@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calum H. Murray | Research</title>
+  <title>Calum Murray | Research</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="navbar">
     <div class="navbar__inner">
-      <a class="brand" href="index.html">Calum H. Murray</a>
+      <a class="brand" href="index.html">Calum Murray</a>
       <div class="nav-links">
         <a href="index.html" aria-current="page">Research</a>
         <a href="outreach.html">Public outreach</a>
@@ -25,7 +25,6 @@
       <h1>Making precise cosmology out of noisy skies</h1>
       <p>I study how galaxy clusters and weak gravitational lensing can sharpen our picture of the universe. My work blends simulations, likelihood design, and careful treatment of systematics so that surveys like Euclid and LSST can turn shear maps into robust measurements.</p>
       <div class="hero__actions">
-        <a class="button secondary" href="cv.pdf" target="_blank" rel="noopener">Download CV</a>
         <a class="button" href="mailto:calum.murray@cea.fr">calum.murray@cea.fr</a>
       </div>
     </header>
@@ -66,6 +65,13 @@
       </ul>
     </section>
 
+    <section>
+      <h2 class="section-title">Research network</h2>
+      <div class="graph-card">
+        <div class="graph-shell" id="graph" aria-label="Research topics network" role="img"></div>
+      </div>
+    </section>
+
     <figure class="figure">
       <img
         id="profile-photo"
@@ -76,8 +82,9 @@
       />
       <figcaption>Tap the photo to swap between the colour shot and a monochrome version.</figcaption>
     </figure>
-
     <script src="photo-data.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" integrity="sha512-IbX2dZ9DbQxDzxZcEiX0sHS0wfzOjCYh0f+okZX6mE6xPDXp/Ugufon1qzP/0f8KZoVQ6B6sRINma/2QIiZ0uA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="script.js"></script>
     <script>
       const photo = document.getElementById('profile-photo');
 

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Gravitational Lensing | Calum Murray</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #07070d;
+    overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro", system-ui, sans-serif;
+  }
+  canvas { display: block; }
+  .home-link {
+    position: fixed;
+    top: 1em;
+    left: 1em;
+    z-index: 2;
+    color: rgba(245, 245, 255, 0.82);
+    text-decoration: none;
+    border: 1px solid rgba(220, 220, 255, 0.22);
+    border-radius: 999px;
+    padding: 0.55em 0.85em;
+    background: rgba(12, 12, 22, 0.58);
+    backdrop-filter: blur(8px);
+    letter-spacing: 0.04em;
+    font-size: 0.78em;
+  }
+  .home-link:hover,
+  .home-link:focus {
+    color: rgba(255, 255, 255, 0.96);
+    border-color: rgba(220, 220, 255, 0.46);
+    outline: none;
+  }
+  .label {
+    position: fixed;
+    color: rgba(220, 220, 255, 0.45);
+    pointer-events: none;
+    letter-spacing: 0.08em;
+  }
+  .title { top: 4.2em; left: 1.2em; font-size: 0.85em; }
+  .hint { bottom: 1.4em; left: 0; right: 0; text-align: center; font-size: 0.8em; }
+  .credits { bottom: 1.2em; right: 1.4em; font-size: 0.7em; text-align: right; }
+  .sub { font-size: 0.7em; opacity: 0.6; margin-top: 0.3em; }
+  .controls {
+    position: fixed;
+    top: 1.2em;
+    right: 1.2em;
+    display: flex;
+    gap: 1.4em;
+  }
+  .dial-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35em;
+  }
+  .dial-canvas { cursor: ns-resize; touch-action: none; }
+  .dial-label {
+    font-size: 0.68em;
+    color: rgba(220, 220, 255, 0.45);
+    letter-spacing: 0.08em;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<a class="home-link" href="index.html">Home</a>
+<div class="label title">Gravitational Lensing · γ, α = M / r²</div>
+<div class="label hint">
+  touch &amp; drag
+  <div class="sub">background galaxies shear tangentially &amp; deflect radially around mass</div>
+</div>
+<div class="label credits">Cail Daley &amp; Calum Murray with Claude</div>
+<div class="controls">
+  <div class="dial-wrap">
+    <canvas class="dial-canvas" id="dial-shear"></canvas>
+    <span class="dial-label">shear</span>
+  </div>
+  <div class="dial-wrap">
+    <canvas class="dial-canvas" id="dial-deflect"></canvas>
+    <span class="dial-label">deflection</span>
+  </div>
+  <div class="dial-wrap">
+    <canvas class="dial-canvas" id="dial-magnify"></canvas>
+    <span class="dial-label">magnification</span>
+  </div>
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W = innerWidth; H = innerHeight;
+  c.width = W * DPR; c.height = H * DPR;
+  c.style.width = W + 'px'; c.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  placeGalaxies();
+}
+
+const N = 220;
+let galaxies = [];
+
+function placeGalaxies() {
+  galaxies = [];
+  for (let i = 0; i < N; i++) {
+    galaxies.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      a: 5 + Math.random() * 6,
+      e0: 0.3 + Math.random() * 0.35,         // intrinsic ellipticity
+      theta0: Math.random() * Math.PI,        // intrinsic orientation
+      hue: 195 + Math.random() * 70,          // blue → violet → soft rose
+      vx: (Math.random() - 0.5) * 0.05,
+      vy: (Math.random() - 0.5) * 0.05,
+      phase: Math.random() * Math.PI * 2,     // for subtle twinkle
+    });
+  }
+}
+
+let mass = null;             // active touch
+let ghost = null;            // fading after release
+function setMass(x, y) { mass = { x, y }; ghost = null; }
+function releaseMass() {
+  if (mass) ghost = { x: mass.x, y: mass.y, life: 1.0 };
+  mass = null;
+}
+
+c.addEventListener('pointerdown', e => setMass(e.clientX, e.clientY));
+c.addEventListener('pointermove', e => {
+  if (mass !== null) setMass(e.clientX, e.clientY);
+});
+c.addEventListener('pointerup', releaseMass);
+c.addEventListener('pointercancel', releaseMass);
+c.addEventListener('pointerleave', releaseMass);
+
+const M_STRENGTH = 9000;        // shear strength
+const DEFLECT_STRENGTH = 18000; // deflection strength (apparent position shift)
+
+// Dial values: 0 = off, 1 = nominal strength, 2 = double
+const dialValues = { shear: 1, deflect: 1, magnify: 1 };
+
+const DIAL_START = 3 * Math.PI / 4;  // 7:30 o'clock in canvas coords
+const DIAL_SWEEP = 3 * Math.PI / 2;  // 270° total sweep
+
+function drawDialCanvas(canvas, value) {
+  const dpr = window.devicePixelRatio || 1;
+  const size = 46;
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
+  const dc = canvas.getContext('2d');
+  dc.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const cx = size / 2, cy = size / 2, r = size * 0.36;
+  const currentAngle = DIAL_START + (value / 2) * DIAL_SWEEP;
+
+  // Track arc (full range, dim)
+  dc.beginPath();
+  dc.arc(cx, cy, r, DIAL_START, DIAL_START + DIAL_SWEEP);
+  dc.strokeStyle = 'rgba(220,220,255,0.1)';
+  dc.lineWidth = 2.5; dc.lineCap = 'round';
+  dc.stroke();
+
+  // Filled arc (0 → current value)
+  if (value > 0.01) {
+    dc.beginPath();
+    dc.arc(cx, cy, r, DIAL_START, currentAngle);
+    dc.strokeStyle = 'rgba(200,210,255,0.65)';
+    dc.lineWidth = 2.5; dc.lineCap = 'round';
+    dc.stroke();
+  }
+
+  // Knob body
+  dc.beginPath();
+  dc.arc(cx, cy, r - 5, 0, Math.PI * 2);
+  dc.fillStyle = 'rgba(220,220,255,0.06)';
+  dc.fill();
+  dc.strokeStyle = 'rgba(220,220,255,0.18)';
+  dc.lineWidth = 1; dc.stroke();
+
+  // Indicator tick
+  const i1 = r - 12, i2 = r - 6;
+  dc.beginPath();
+  dc.moveTo(cx + i1 * Math.cos(currentAngle), cy + i1 * Math.sin(currentAngle));
+  dc.lineTo(cx + i2 * Math.cos(currentAngle), cy + i2 * Math.sin(currentAngle));
+  dc.strokeStyle = 'rgba(255,255,255,0.9)';
+  dc.lineWidth = 2; dc.lineCap = 'round';
+  dc.stroke();
+}
+
+function setupDials() {
+  for (const name of ['shear', 'deflect', 'magnify']) {
+    const canvas = document.getElementById('dial-' + name);
+    drawDialCanvas(canvas, dialValues[name]);
+
+    let startY, startVal;
+    canvas.addEventListener('pointerdown', e => {
+      startY = e.clientY; startVal = dialValues[name];
+      canvas.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (startY === undefined) return;
+      dialValues[name] = Math.max(0, Math.min(2, startVal + (startY - e.clientY) / 120));
+      drawDialCanvas(canvas, dialValues[name]);
+      e.preventDefault();
+    });
+    canvas.addEventListener('pointerup', () => { startY = undefined; });
+  }
+}
+setupDials();
+
+function draw(t) {
+  ctx.fillStyle = '#07070d';
+  ctx.fillRect(0, 0, W, H);
+
+  const lens = mass || (ghost && ghost.life > 0 ? ghost : null);
+
+  for (const g of galaxies) {
+    // drift
+    g.x += g.vx; g.y += g.vy;
+    if (g.x < -10) g.x = W + 10; else if (g.x > W + 10) g.x = -10;
+    if (g.y < -10) g.y = H + 10; else if (g.y > H + 10) g.y = -10;
+
+    let theta = g.theta0;
+    let e = g.e0;
+    let mag = 1.0;
+    let drawX = g.x;
+    let drawY = g.y;
+
+    if (lens) {
+      const dx = g.x - lens.x;
+      const dy = g.y - lens.y;
+      const r2 = dx*dx + dy*dy + 600;       // softening core
+      const phi = Math.atan2(dy, dx);
+      const baseShear = M_STRENGTH / r2;
+
+      if (dialValues.shear > 0) {
+        const w = Math.min(1, baseShear * dialValues.shear);
+        const tang = phi + Math.PI / 2;
+        const ix = g.e0 * Math.cos(2 * g.theta0);
+        const iy = g.e0 * Math.sin(2 * g.theta0);
+        const sx = w * Math.cos(2 * tang);
+        const sy = w * Math.sin(2 * tang);
+        const ex = ix + sx; const ey = iy + sy;
+        e = Math.min(0.92, Math.sqrt(ex*ex + ey*ey));
+        theta = 0.5 * Math.atan2(ey, ex);
+      }
+
+      if (dialValues.magnify > 0) {
+        const kappa = Math.min(0.65, baseShear * 0.8 * dialValues.magnify);
+        mag = Math.min(3.0, 1 / Math.max(0.1, (1 - kappa) * (1 - kappa)));
+      }
+
+      if (dialValues.deflect > 0) {
+        drawX = g.x + DEFLECT_STRENGTH * dialValues.deflect * dx / r2;
+        drawY = g.y + DEFLECT_STRENGTH * dialValues.deflect * dy / r2;
+      }
+    }
+
+    const a = g.a * mag;
+    const b = a * (1 - e);
+
+    const tw = 0.85 + 0.15 * Math.sin(t * 0.001 + g.phase);
+
+    ctx.save();
+    ctx.translate(drawX, drawY);
+    ctx.rotate(theta);
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, a);
+    grad.addColorStop(0, `hsla(${g.hue}, 75%, 80%, ${0.95 * tw})`);
+    grad.addColorStop(0.6, `hsla(${g.hue}, 65%, 60%, ${0.35 * tw})`);
+    grad.addColorStop(1, `hsla(${g.hue}, 60%, 40%, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, a, b, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // draw lens marker
+  if (lens) {
+    const alpha = mass ? 0.55 : 0.55 * ghost.life;
+    const grad = ctx.createRadialGradient(lens.x, lens.y, 0, lens.x, lens.y, 40);
+    grad.addColorStop(0, `rgba(255, 235, 200, ${alpha})`);
+    grad.addColorStop(0.4, `rgba(255, 200, 150, ${alpha * 0.4})`);
+    grad.addColorStop(1, 'rgba(255, 200, 150, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(lens.x, lens.y, 40, 0, Math.PI * 2);
+    ctx.fill();
+
+    // tiny dot in the center
+    ctx.fillStyle = `rgba(255, 250, 230, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(lens.x, lens.y, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (ghost) {
+    ghost.life -= 0.025;
+    if (ghost.life <= 0) ghost = null;
+  }
+
+  requestAnimationFrame(draw);
+}
+
+window.addEventListener('resize', resize);
+resize();
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

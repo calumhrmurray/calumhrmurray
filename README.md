@@ -24,6 +24,4 @@ consortium, the DESC collaboration and the UNIONS collaboration.
 ### Not here
 
 Most of what I write lives in collaboration repositories, or in private ones holding
-catalogues and results that aren't public yet. Since May 2026 I've been running my analyses
-by directing agents: I decide the science, the agents write the code. I'm also working with
-Cail Daley on evaluations for that way of working, on the Lightcone Research stack.
+catalogues and results that aren't public yet. 
